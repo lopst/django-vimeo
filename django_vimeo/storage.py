@@ -32,13 +32,14 @@ class VimeoFileStorage(Storage):
         self.video_url_pattern = getattr(settings, 'VIMEO_VIDEO_URL_PATTERN',
                                          'https://vimeo.com/{}')
 
+
     @cached_property
     def client(self):
         return VimeoClient(token=self.access_token, key=self.client_id, secret=self.client_secret)
-
     def _upload_quota_check(self, size):
         res = self.client.get('/me')
         self._raise_for_status(res)
+	
         res = res.json()
         if 'upload_quota' in res and \
                         res.get('upload_quota', {}).get('space', {}).get('free', 0) < size:
@@ -58,6 +59,9 @@ class VimeoFileStorage(Storage):
 
     @cache_it()
     def get_meta(self, path):
+	'''
+	Aqui si se devuelve todo, por si se necesita para algo
+	'''
         res = self.client.get(path)
         self._raise_for_status(res)
         return res.json()
@@ -75,7 +79,7 @@ class VimeoFileStorage(Storage):
         return oembed.get('html')
 
     def get_valid_name(self, name):
-        valid_name = name
+	valid_name = name
         if valid_name and valid_name[0] == '.':
             valid_name = valid_name[1:]
         return valid_name
@@ -93,39 +97,98 @@ class VimeoFileStorage(Storage):
         return self.client.get(name).ok
 
     def size(self, name):
+	'''
+	Sobrescrita
+
+	fich = open("/home/jose/Escritorio/VIMEO.txt", 'a')
+	fich.write("JSON DE STATUS en size:\n")
+	'''
+	name=name+'?files=files,size'
         res = self.client.get(name)
         self._raise_for_status(res)
         res = res.json()
+	'''
+	fich.write('LIMITE:')
+	fich.write(str(res.headers.get('X-RateLimit-Limit'))+'\n')
+	fich.write('QUEDAN:')
+	fich.write(str(res.headers.get('X-RateLimit-Remaining'))+'\n')
+	fich.close()
+	'''
         large_files = sorted(res.get('files'), key=operator.itemgetter('size'), reverse=True)
         return large_files[0].get('size', 0) if large_files else 0
 
     def url(self, name):
+	'''
+	Sobreescrita
+
+	fich = open("/home/jose/Escritorio/VIMEO.txt", 'a')
+	fich.write("JSON DE STATUS en url:\n")
+	'''
+	name=name+'?fields=files,size,link_secure'
         res = self.client.get(name)
+	
+	'''
+	fich.write('LIMITE:')
+	fich.write(str(res.headers.get('X-RateLimit-Limit'))+'\n')
+	fich.write('QUEDAN:')
+	fich.write(str(res.headers.get('X-RateLimit-Remaining'))+'\n')
+	fich.close()
+	'''
         res.raise_for_status()
         res = res.json()
         large_files = sorted(res.get('files'), key=operator.itemgetter('size'), reverse=True)
         return large_files[0].get('link_secure') if large_files else None
+	
 
     def accessed_time(self, name):
+	'''
+	sobreescrita
+
+	fich = open("/home/jose/Escritorio/VIMEO.txt", 'a')
+	fich.write("JSON DE STATUS en accessed_time:\n")
+	'''
+	name=name+'?fields=modified_time'
         res = self.client.get(name)
+
+	'''
+	fich.write('LIMITE:')
+	fich.write(str(res.headers.get('X-RateLimit-Limit'))+'\n')
+	fich.write('QUEDAN:')
+	fich.write(str(res.headers.get('X-RateLimit-Remaining'))+'\n')
+	fich.close()
+	'''
         res.raise_for_status()
         res = res.json()
         utc_datetime = res.get('modified_time')
         return datetime.strptime(utc_datetime, '%Y-%m-%dT%H:%M:%SZ')
 
     def created_time(self, name):
+	'''
+	sobreescrita
+	
+	fich = open("/home/jose/Escritorio/VIMEO.txt", 'a')
+	fich.write("JSON DE STATUS en created_time:\n")
+	'''
+	name=name+'?fields=created_time'
         res = self.client.get(name)
+	'''
+	fich.write('LIMITE:')
+	fich.write(str(res.headers.get('X-RateLimit-Limit'))+'\n')
+	fich.write('QUEDAN:')
+	fich.write(str(res.headers.get('X-RateLimit-Remaining'))+'\n')
+	fich.close()
+	'''
         res.raise_for_status()
         res = res.json()
         utc_datetime = res.get('created_time')
         return datetime.strptime(utc_datetime, '%Y-%m-%dT%H:%M:%SZ')
+
 
     def modified_time(self, name):
         return self.accessed_time(name)
 
     def _save(self, name, content):
         size = content.size
-        self._upload_quota_check(size)
         uploaded_uri = None
         if hasattr(content, 'temporary_file_path'):
             tmp_file_path = content.temporary_file_path()
@@ -141,4 +204,32 @@ class VimeoFileStorage(Storage):
                 uploaded_uri = self.client.upload(tmp_file.name)
             finally:
                 os.unlink(tmp_file.name)
+
         return uploaded_uri
+
+    def vimeo_url(self, token, client_id, secret_id, name):
+	'''
+	sobreescrita
+	
+	fich = open("/home/jose/Escritorio/VIMEO.txt", 'a')
+	fich.write("JSON DE STATUS en vimeo_url:\n")
+	'''
+        try:
+	    name=name+'?fields=files,size,link_secure'
+            client = VimeoClient(token=token, key=client_id, secret=secret_id)
+	    res = client.get(name)
+	    res.raise_for_status()
+	    res = res.json()
+	    '''
+	    fich.write('LIMITE:')
+	    fich.write(str(res.headers.get('X-RateLimit-Limit'))+'\n')
+	    fich.write('QUEDAN:')
+	    fich.write(str(res.headers.get('X-RateLimit-Remaining'))+'\n')
+	    fich.close()
+	    '''
+	    large_files = sorted(res.get('files'), key=operator.itemgetter('size'), reverse=True)
+	   
+	    return large_files[0].get('link_secure') if large_files else None
+        except:
+	    fich.close()
+	    return "No ha funcionado"
